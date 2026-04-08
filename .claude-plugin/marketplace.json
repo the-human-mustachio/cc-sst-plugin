@@ -1,0 +1,19 @@
+{
+  "name": "cc-sst-plugin",
+  "owner": {
+    "name": "mustachio"
+  },
+  "plugins": [
+    {
+      "name": "sst",
+      "description": "Build and deploy full-stack applications with SST on AWS using Lambda, S3, DynamoDB, EventBridge, ECS, and Step Functions",
+      "source": "./",
+      "category": "infrastructure",
+      "version": "1.0.0",
+      "author": {
+        "name": "mustachio"
+      },
+      "keywords": ["sst", "serverless", "lambda", "aws", "infrastructure", "full-stack", "iac", "pulumi"]
+    }
+  ]
+}
