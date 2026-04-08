@@ -35,7 +35,7 @@ Refer to these supporting files for detailed guidance on specific workflows:
 | [resource-linking.md](resource-linking.md) | The `link` prop, `Resource` SDK, type generation, custom linkables |
 | [dev-workflow.md](dev-workflow.md) | `sst dev` modes, live Lambda, local databases, VPC tunneling |
 | [deployment.md](deployment.md) | Stages, secrets, `sst deploy`, `sst diff`, removal policies, CI/CD |
-| [providers.md](providers.md) | Adding providers, raw Pulumi resources, imports, transforms, `Output<T>` |
+| [providers.md](providers.md) | Adding providers, raw Pulumi resources, transforms (`transform` prop, `$transform` global), `Output<T>` |
 | [event-driven-architecture.md](event-driven-architecture.md) | EventBridge patterns, publishing, filtering, choreography vs orchestration |
 | [event-sources.md](event-sources.md) | S3 notifications, DynamoDB Streams, SQS, SNS, Kinesis, Cron, Realtime |
 | [orchestration-and-workflows.md](orchestration-and-workflows.md) | Step Functions state machines, Lambda Durable Functions |

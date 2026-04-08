@@ -104,38 +104,168 @@ run() {
 
 SST's `.get()` methods look up the resource by ID/name and return it as a managed reference.
 
-## Transform Callbacks
+## Transforms
 
-Customize the underlying AWS resources that SST components create:
+Transforms let you customize the underlying AWS resources that SST components create. Use them when SST's high-level props don't expose what you need — they're the escape hatch to the raw Pulumi resource layer.
+
+### When to use transforms vs props
+
+- **Use SST props** when the component directly exposes the setting (e.g., `memory`, `timeout`, `link`)
+- **Use transforms** when you need to set something on the underlying AWS resource that SST doesn't surface (e.g., `ephemeralStorage`, `tracingConfig`, `managedPolicyArns`)
+
+### Object form (simple overrides)
+
+Merge properties directly into the underlying resource:
 
 ```typescript
 new sst.aws.Function("MyFunction", {
   handler: "src/handler.handler",
   transform: {
     function: {
-      // Override the underlying Lambda function props
       memorySize: 2048,
       ephemeralStorage: { size: 5120 },
     },
     role: {
-      // Override the IAM role props
       managedPolicyArns: ["arn:aws:iam::policy/ReadOnlyAccess"],
     },
   },
 });
 ```
 
-Transforms give you access to the raw Pulumi resource properties when SST's high-level props don't expose what you need.
+### Callback form (full control)
 
-### Function transforms
+The callback receives `(args, opts, name)` — use it for conditional logic or to modify Pulumi resource options:
 
 ```typescript
-transform: {
-  function: (args) => {
-    args.memorySize = 2048;
-    return args;
+new sst.aws.Function("MyFunction", {
+  handler: "src/handler.handler",
+  transform: {
+    function: (args, opts, name) => {
+      args.memorySize = 2048;
+      args.tracingConfig = { mode: "Active" };
+      // opts gives access to Pulumi ComponentResourceOptions
+      opts.retainOnDelete = true;
+    },
+    role: (args) => {
+      args.name = `custom-role-${args.name}`;
+    },
   },
-}
+});
+```
+
+**Callback signature:** `(args: ResourceArgs, opts: pulumi.ComponentResourceOptions, name: string) => void`
+
+### $transform global (apply to all instances)
+
+Set defaults across every instance of a component type:
+
+```typescript
+run() {
+  // All Functions created AFTER this line get these defaults
+  $transform(sst.aws.Function, (args) => {
+    args.architecture ??= "arm64";
+    args.runtime ??= "nodejs22.x";
+    args.logging ??= { format: "json", retention: "1 week" };
+  });
+
+  // These functions inherit the defaults above
+  const api = new sst.aws.Function("Api", {
+    handler: "src/api.handler",
+    // architecture is "arm64" from $transform
+  });
+
+  const worker = new sst.aws.Function("Worker", {
+    handler: "src/worker.handler",
+    architecture: "x86_64",  // Overrides the $transform default
+  });
+},
+```
+
+**Important:**
+- `$transform` only applies to components declared **after** the call — order matters
+- Use nullish coalescing (`??=`) so component-level props can override the global default
+- Callback signature: `(args: ComponentArgs, opts: pulumi.ComponentResourceOptions) => void`
+
+### Transform targets by component
+
+Each SST component exposes specific transform targets — these are the underlying Pulumi resources you can customize:
+
+| Component | Transform targets |
+| --------- | ----------------- |
+| **Function** | `function`, `role`, `logGroup`, `eventInvokeConfig` |
+| **Bucket** | `bucket`, `cors`, `lifecycle`, `policy`, `publicAccessBlock`, `versioning`, `notification` |
+| **Dynamo** | `table`, `eventSourceMapping` |
+| **Queue** | `queue`, `dlq` |
+| **Bus** | `bus`, `rule`, `target` |
+| **SnsTopic** | `topic` |
+| **Postgres** | `instance`, `subnetGroup`, `parameterGroup`, `proxy` |
+| **ApiGatewayV2** | `api`, `stage`, `accessLog`, `domainName` |
+| **Cluster** | `cluster` |
+| **Service** | `service`, `taskDefinition`, `taskRole`, `executionRole`, `loadBalancer`, `target`, `listener` |
+| **Nextjs** | `assets`, `cdn`, `server`, `imageOptimizer`, `revalidationEventsSubscriber`, `revalidationSeeder` |
+| **CronV2** | `rule`, `target` |
+
+Consult each component's docs for the exact Pulumi resource type behind each target.
+
+### Common transform patterns
+
+**Enable X-Ray tracing on all functions:**
+```typescript
+$transform(sst.aws.Function, (args) => {
+  args.transform ??= {};
+  args.transform.function ??= {};
+  // Note: for $transform on the component itself, set top-level args
+});
+
+// Or per-function:
+new sst.aws.Function("MyFunction", {
+  handler: "src/handler.handler",
+  transform: {
+    function: {
+      tracingConfig: { mode: "Active" },
+    },
+  },
+});
+```
+
+**Retain a bucket on delete:**
+```typescript
+new sst.aws.Bucket("ImportantData", {
+  transform: {
+    bucket: (args, opts) => {
+      opts.retainOnDelete = true;
+    },
+  },
+});
+```
+
+**Add a resource policy to an SNS topic:**
+```typescript
+new sst.aws.SnsTopic("Alerts", {
+  transform: {
+    topic: {
+      policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [{
+          Effect: "Allow",
+          Principal: { Service: "events.amazonaws.com" },
+          Action: "sns:Publish",
+          Resource: "*",
+        }],
+      }),
+    },
+  },
+});
+```
+
+**Skip creating a resource (return false):**
+```typescript
+new sst.aws.Bucket("MyBucket", {
+  access: "public",
+  transform: {
+    publicAccessBlock: false,  // Don't create the public access block
+  },
+});
 ```
 
 ## Output<T> Types
